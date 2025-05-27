@@ -3,141 +3,140 @@
 import type React from "react"
 
 import { useState } from "react"
-import { signIn, getSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Separator } from "@/components/ui/separator"
 import { Github, Loader2, Leaf } from "lucide-react"
-import Link from "next/link"
 
 export default function SignInPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const { login, loginWithGitHub, isLoading, isGitHubEnabled } = useAuth()
   const router = useRouter()
 
-  const handleCredentialsSignIn = async (e: React.FormEvent) => {
+  const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
     setError("")
 
-    try {
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-      })
-
-      if (result?.error) {
-        setError("Invalid email or password")
-      } else {
-        const session = await getSession()
-        if (session?.user?.role === "admin") {
-          router.push("/admin")
-        } else {
-          router.push("/dashboard")
-        }
-      }
-    } catch (error) {
-      setError("An error occurred during sign in")
-    } finally {
-      setIsLoading(false)
+    const success = await login(email, password)
+    if (success) {
+      router.push("/dashboard")
+    } else {
+      setError("Invalid email or password")
     }
   }
 
-  const handleGitHubSignIn = async () => {
-    setIsLoading(true)
+  const handleGitHubLogin = async () => {
     try {
-      await signIn("github", { callbackUrl: "/dashboard" })
+      await loginWithGitHub()
     } catch (error) {
-      setError("GitHub sign in failed")
-      setIsLoading(false)
+      setError("GitHub login failed. Please try again.")
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-blue-50 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
+    <div className="min-h-screen flex items-center justify-center bg-white p-4">
+      <Card className="w-full max-w-md bg-white border border-gray-200 shadow-lg">
+        <CardHeader className="text-center bg-white">
           <div className="flex items-center justify-center gap-2 mb-4">
             <Leaf className="h-8 w-8 text-green-600" />
             <h1 className="text-2xl font-bold text-green-700">AgroSmart</h1>
           </div>
-          <CardTitle>Welcome Back</CardTitle>
-          <CardDescription>Sign in to your agricultural assistant</CardDescription>
+          <CardTitle className="text-gray-900">Welcome Back</CardTitle>
+          <CardDescription className="text-gray-600">Sign in to your Smart Agriculture Assistant</CardDescription>
         </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="credentials" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="credentials">Email</TabsTrigger>
-              <TabsTrigger value="oauth">GitHub</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="credentials" className="space-y-4">
-              <form onSubmit={handleCredentialsSignIn} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="farmer@example.com"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    required
-                  />
-                </div>
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign In"}
-                </Button>
-              </form>
-
-              <div className="text-center text-sm text-muted-foreground">
-                <p>Demo accounts:</p>
-                <p>Admin: admin@agrosmart.com / admin123</p>
-                <p>Farmer: farmer@example.com / farmer123</p>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="oauth" className="space-y-4">
-              <Button onClick={handleGitHubSignIn} variant="outline" className="w-full" disabled={isLoading}>
-                <Github className="h-4 w-4 mr-2" />
+        <CardContent className="space-y-6 bg-white">
+          {/* GitHub Login - Only show if enabled */}
+          {isGitHubEnabled && (
+            <>
+              <Button
+                onClick={handleGitHubLogin}
+                variant="outline"
+                className="w-full bg-white border-gray-300 text-gray-900 hover:bg-gray-50"
+                disabled={isLoading}
+              >
+                {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Github className="h-4 w-4 mr-2" />}
                 Continue with GitHub
               </Button>
-              <p className="text-xs text-center text-muted-foreground">
-                Sign in with your GitHub account to get started quickly
-              </p>
-            </TabsContent>
-          </Tabs>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              Don't have an account?{" "}
-              <Link href="/auth/signup" className="text-green-600 hover:underline">
-                Sign up
-              </Link>
-            </p>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <Separator className="w-full border-gray-200" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-white px-2 text-gray-500">Or continue with email</span>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Credentials Login */}
+          <form onSubmit={handleCredentialsSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-gray-700">
+                Email
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="bg-white border-gray-300 text-gray-900"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-gray-700">
+                Password
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="bg-white border-gray-300 text-gray-900"
+              />
+            </div>
+            {error && (
+              <Alert variant="destructive" className="bg-red-50 border-red-200">
+                <AlertDescription className="text-red-700">{error}</AlertDescription>
+              </Alert>
+            )}
+            <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white" disabled={isLoading}>
+              {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Sign In
+            </Button>
+          </form>
+
+          <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <p className="text-sm font-medium mb-2 text-gray-900">Demo Accounts:</p>
+            <div className="text-xs space-y-1 text-gray-700">
+              <p>
+                <strong>Admin:</strong> admin@example.com / admin123
+              </p>
+              <p>
+                <strong>Farmer:</strong> farmer@example.com / farmer123
+              </p>
+              <p>
+                <strong>Expert:</strong> expert@example.com / expert123
+              </p>
+            </div>
           </div>
+
+          {!isGitHubEnabled && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-xs text-blue-700">
+                💡 <strong>Tip:</strong> Add NEXT_PUBLIC_GITHUB_CLIENT_ID to enable GitHub OAuth login
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
