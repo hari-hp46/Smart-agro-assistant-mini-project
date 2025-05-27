@@ -52,7 +52,6 @@ export default function SignInPage() {
           <CardDescription className="text-gray-600">Sign in to your Smart Agriculture Assistant</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 bg-white">
-          {/* GitHub Login - Only show if enabled */}
           {isGitHubEnabled && (
             <>
               <Button
@@ -76,7 +75,6 @@ export default function SignInPage() {
             </>
           )}
 
-          {/* Credentials Login */}
           <form onSubmit={handleCredentialsSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email" className="text-gray-700">

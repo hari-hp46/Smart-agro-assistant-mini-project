@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { createContext, useContext, useState, useEffect } from "react"
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 
 interface User {
   id: string
@@ -10,7 +8,6 @@ interface User {
   name: string
   role: "admin" | "farmer" | "expert"
   avatar?: string
-  provider?: "credentials" | "github"
 }
 
 interface AuthContextType {
@@ -18,95 +15,94 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>
   loginWithGitHub: () => Promise<void>
   logout: () => void
-  isLoading: boolean
-  isGitHubEnabled: boolean
+  loading: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Mock users database
-const mockUsers = [
-  { id: "1", email: "admin@example.com", password: "admin123", name: "Admin User", role: "admin" as const },
-  { id: "2", email: "farmer@example.com", password: "farmer123", name: "John Farmer", role: "farmer" as const },
-  { id: "3", email: "expert@example.com", password: "expert123", name: "Dr. Expert", role: "expert" as const },
+// Demo users for testing
+const DEMO_USERS: User[] = [
+  { id: "1", email: "admin@example.com", name: "Admin User", role: "admin" },
+  { id: "2", email: "farmer@example.com", name: "John Farmer", role: "farmer" },
+  { id: "3", email: "expert@example.com", name: "Dr. Expert", role: "expert" },
 ]
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+const DEMO_PASSWORDS: Record<string, string> = {
+  "admin@example.com": "admin123",
+  "farmer@example.com": "farmer123",
+  "expert@example.com": "expert123",
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  // Check if GitHub OAuth is configured
-  const isGitHubEnabled =
-    typeof window !== "undefined" &&
-    process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID &&
-    process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID !== "your_github_client_id"
-
-  // Load user from localStorage on mount
   useEffect(() => {
+    // Check for existing session on mount
     const savedUser = localStorage.getItem("auth-user")
     if (savedUser) {
-      setUser(JSON.parse(savedUser))
+      try {
+        setUser(JSON.parse(savedUser))
+      } catch (error) {
+        console.error("Error parsing saved user:", error)
+        localStorage.removeItem("auth-user")
+      }
     }
+    setLoading(false)
   }, [])
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    setIsLoading(true)
+    setLoading(true)
 
     // Simulate API delay
     await new Promise((resolve) => setTimeout(resolve, 1000))
 
-    const foundUser = mockUsers.find((u) => u.email === email && u.password === password)
-
-    if (foundUser) {
-      const userSession = {
-        id: foundUser.id,
-        email: foundUser.email,
-        name: foundUser.name,
-        role: foundUser.role,
-        provider: "credentials" as const,
-      }
-      setUser(userSession)
-      localStorage.setItem("auth-user", JSON.stringify(userSession))
-      setIsLoading(false)
+    // Check demo credentials
+    const demoUser = DEMO_USERS.find((u) => u.email === email)
+    if (demoUser && DEMO_PASSWORDS[email] === password) {
+      setUser(demoUser)
+      localStorage.setItem("auth-user", JSON.stringify(demoUser))
+      setLoading(false)
       return true
     }
 
-    setIsLoading(false)
+    setLoading(false)
     return false
   }
 
   const loginWithGitHub = async (): Promise<void> => {
-    if (!isGitHubEnabled) {
-      alert("GitHub OAuth is not configured. Please use credential login.")
-      return
+    const clientId = process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID
+
+    if (!clientId) {
+      throw new Error("GitHub OAuth not configured")
     }
 
-    setIsLoading(true)
+    const redirectUri = `${window.location.origin}/auth/github/callback`
+    const scope = "user:email"
+    const state = Math.random().toString(36).substring(7)
 
-    try {
-      const clientId = process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID
-      const redirectUri = `${window.location.origin}/auth/github/callback`
-      const scope = "user:email"
+    localStorage.setItem("github-oauth-state", state)
 
-      const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}&state=${Math.random().toString(36)}`
+    const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${state}`
 
-      window.location.href = githubAuthUrl
-    } catch (error) {
-      console.error("GitHub login error:", error)
-      setIsLoading(false)
-    }
+    window.location.href = authUrl
   }
 
   const logout = () => {
     setUser(null)
     localStorage.removeItem("auth-user")
+    localStorage.removeItem("github-oauth-state")
   }
 
-  return (
-    <AuthContext.Provider value={{ user, login, loginWithGitHub, logout, isLoading, isGitHubEnabled }}>
-      {children}
-    </AuthContext.Provider>
-  )
+  const value: AuthContextType = {
+    user,
+    login,
+    loginWithGitHub,
+    logout,
+    loading,
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
